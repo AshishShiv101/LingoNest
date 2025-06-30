@@ -1,113 +1,112 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useParams } from "react-router";
 import useAuthUser from "../hooks/useAuthUser";
 import { useQuery } from "@tanstack/react-query";
 import { getStreamToken } from "../lib/api";
+import { useThemeStore } from "../store/useThemeStore"; // 👈 import theme store
 
 import {
-  StreamVideo,
-  StreamVideoClient,
-  StreamCall,
-  CallControls,
-  SpeakerLayout,
-  StreamTheme,
-  CallingState,
-  useCallStateHooks,
-} from "@stream-io/video-react-sdk";
-
-import "@stream-io/video-react-sdk/dist/css/styles.css";
+  Channel,
+  ChannelHeader,
+  Chat,
+  MessageInput,
+  MessageList,
+  Thread,
+  Window,
+} from "stream-chat-react";
+import { StreamChat } from "stream-chat";
 import toast from "react-hot-toast";
-import PageLoader from "../components/PageLoader";
+
+import ChatLoader from "../components/ChatLoader";
+import CallButton from "../components/CallButton";
 
 const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
 
-const CallPage = () => {
-  const { id: callId } = useParams();
-  const [client, setClient] = useState(null);
-  const [call, setCall] = useState(null);
-  const [isConnecting, setIsConnecting] = useState(true);
-
-  const { authUser, isLoading } = useAuthUser();
+const ChatPage = () => {
+  const { id: targetUserId } = useParams();
+  const { authUser } = useAuthUser();
+  const { theme } = useThemeStore(); // 👈 get current theme
+  const [chatClient, setChatClient] = useState(null);
+  const [channel, setChannel] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const { data: tokenData } = useQuery({
     queryKey: ["streamToken"],
     queryFn: getStreamToken,
-    enabled: !!authUser,
+    enabled: !!authUser, // Run only when authUser is available
   });
 
   useEffect(() => {
-    const initCall = async () => {
-      if (!tokenData.token || !authUser || !callId) return;
+    const initChat = async () => {
+      if (!tokenData?.token || !authUser) return;
 
       try {
-        console.log("Initializing Stream video client...");
+        const client = StreamChat.getInstance(STREAM_API_KEY);
 
-        const user = {
-          id: authUser._id,
-          name: authUser.fullName,
-          image: authUser.profilePic,
-        };
+        await client.connectUser(
+          {
+            id: authUser._id,
+            name: authUser.fullName,
+            image: authUser.profilePic,
+          },
+          tokenData.token
+        );
 
-        const videoClient = new StreamVideoClient({
-          apiKey: STREAM_API_KEY,
-          user,
-          token: tokenData.token,
+        const channelId = [authUser._id, targetUserId].sort().join("-");
+        const currChannel = client.channel("messaging", channelId, {
+          members: [authUser._id, targetUserId],
         });
 
-        const callInstance = videoClient.call("default", callId);
+        await currChannel.watch();
 
-        await callInstance.join({ create: true });
-
-        console.log("Joined call successfully");
-
-        setClient(videoClient);
-        setCall(callInstance);
+        setChatClient(client);
+        setChannel(currChannel);
       } catch (error) {
-        console.error("Error joining call:", error);
-        toast.error("Could not join the call. Please try again.");
+        console.error("Error initializing chat:", error);
+        toast.error("Could not connect to chat. Please try again.");
       } finally {
-        setIsConnecting(false);
+        setLoading(false);
       }
     };
 
-    initCall();
-  }, [tokenData, authUser, callId]);
+    initChat();
+  }, [tokenData, authUser, targetUserId]);
 
-  if (isLoading || isConnecting) return <PageLoader />;
+  const handleVideoCall = () => {
+    if (channel) {
+      const callUrl = `${window.location.origin}/call/${channel.id}`;
+
+      channel.sendMessage({
+        text: `I've started a video call. Join me here: ${callUrl}`,
+      });
+
+      toast.success("Video call link sent successfully!");
+    }
+  };
+
+  if (loading || !chatClient || !channel) return <ChatLoader />;
 
   return (
-    <div className="h-screen flex flex-col items-center justify-center">
-      <div className="relative">
-        {client && call ? (
-          <StreamVideo client={client}>
-            <StreamCall call={call}>
-              <CallContent />
-            </StreamCall>
-          </StreamVideo>
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <p>Could not initialize call. Please refresh or try again later.</p>
+    <div
+      className="h-[93vh] w-full overflow-hidden bg-base-100 text-base-content" // This syncs with theme
+      data-theme={theme} // Optional if Layout or App already handles theme
+    >
+      <Chat client={chatClient}>
+        <Channel channel={channel}>
+          <div className="w-full relative">
+            <CallButton handleVideoCall={handleVideoCall} />
+            <Window>
+              <ChannelHeader />
+              <MessageList />
+              <MessageInput focus />
+            </Window>
           </div>
-        )}
-      </div>
+          <Thread />
+        </Channel>
+      </Chat>
     </div>
+
   );
 };
 
-const CallContent = () => {
-  const { useCallCallingState } = useCallStateHooks();
-  const callingState = useCallCallingState();
-
-  const navigate = useNavigate();
-
-  if (callingState === CallingState.LEFT) return navigate("/");
-
-  return (
-    <StreamTheme>
-      <SpeakerLayout />
-      <CallControls />
-    </StreamTheme>
-  );
-};
-
-export default CallPage;
+export default ChatPage;
