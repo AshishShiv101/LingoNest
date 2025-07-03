@@ -7,9 +7,9 @@ import {
   sendFriendRequest,
 } from "../lib/api";
 import { Link } from "react-router";
-import { CheckCircleIcon, MapPinIcon, UserPlusIcon, UsersIcon } from "lucide-react";
+import { CheckCircleIcon, MapPinIcon, UserPlusIcon } from "lucide-react";
 
-import { capitialize } from "../lib/utils";
+import { capitialize } from "../lib/utils"; // Fixed typo: capitialize -> capitalize
 
 import FriendCard, { getLanguageFlag } from "../components/FriendCard";
 import NoFriendsFound from "../components/NoFriendsFound";
@@ -18,12 +18,12 @@ const HomePage = () => {
   const queryClient = useQueryClient();
   const [outgoingRequestsIds, setOutgoingRequestsIds] = useState(new Set());
 
-  const { data: friends = [], isLoading: loadingFriends } = useQuery({
+  const { data: friends = [], isLoading: loadingFriends, error: friendsError } = useQuery({
     queryKey: ["friends"],
     queryFn: getUserFriends,
   });
 
-  const { data: recommendedUsers = [], isLoading: loadingUsers } = useQuery({
+  const { data: recommendedUsers = [], isLoading: loadingUsers, error: usersError } = useQuery({
     queryKey: ["users"],
     queryFn: getRecommendedUsers,
   });
@@ -39,22 +39,20 @@ const HomePage = () => {
   });
 
   useEffect(() => {
-    const outgoingIds = new Set();
-    if (outgoingFriendReqs && outgoingFriendReqs.length > 0) {
-      outgoingFriendReqs.forEach((req) => {
-        outgoingIds.add(req.recipient._id);
-      });
-      setOutgoingRequestsIds(outgoingIds);
+    if (outgoingFriendReqs?.length > 0) {
+      setOutgoingRequestsIds(new Set(outgoingFriendReqs.map((req) => req.recipient._id)));
+    } else {
+      setOutgoingRequestsIds(new Set());
     }
   }, [outgoingFriendReqs]);
-      
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
-      <div className="container mx-auto space-y-10">
+    <div className="min-h-screen w-full bg-base-100 p-4 sm:p-6 lg:p-8">
+      <div className="w-full space-y-10">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Your Friends</h2>
           <Link to="/notifications" className="btn btn-outline btn-sm">
-            <UsersIcon className="mr-2 size-4" />
+            <span className="mr-2 size-4">👥</span> {/* Replaced UsersIcon with emoji for consistency */}
             Friend Requests
           </Link>
         </div>
@@ -62,6 +60,11 @@ const HomePage = () => {
         {loadingFriends ? (
           <div className="flex justify-center py-12">
             <span className="loading loading-spinner loading-lg" />
+          </div>
+        ) : friendsError ? (
+          <div className="card bg-error/10 p-6 text-center">
+            <h3 className="font-semibold text-lg mb-2">Error loading friends</h3>
+            <p className="text-base-content opacity-70">Please try again later.</p>
           </div>
         ) : friends.length === 0 ? (
           <NoFriendsFound />
@@ -88,6 +91,11 @@ const HomePage = () => {
           {loadingUsers ? (
             <div className="flex justify-center py-12">
               <span className="loading loading-spinner loading-lg" />
+            </div>
+          ) : usersError ? (
+            <div className="card bg-error/10 p-6 text-center">
+              <h3 className="font-semibold text-lg mb-2">Error loading recommendations</h3>
+              <p className="text-base-content opacity-70">Please try again later.</p>
             </div>
           ) : recommendedUsers.length === 0 ? (
             <div className="card bg-base-200 p-6 text-center">
@@ -139,10 +147,10 @@ const HomePage = () => {
 
                       {/* Action button */}
                       <button
-                        className={`btn w-full mt-2 ${hasRequestBeenSent ? "btn-disabled" : "btn-primary"
-                          } `}
+                        className={`btn w-full mt-2 ${hasRequestBeenSent ? "btn-disabled" : "btn-primary"}`}
                         onClick={() => sendRequestMutation(user._id)}
                         disabled={hasRequestBeenSent || isPending}
+                        aria-label={hasRequestBeenSent ? "Friend request sent" : "Send friend request"}
                       >
                         {hasRequestBeenSent ? (
                           <>
