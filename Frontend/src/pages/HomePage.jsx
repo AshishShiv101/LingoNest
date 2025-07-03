@@ -8,9 +8,7 @@ import {
 } from "../lib/api";
 import { Link } from "react-router";
 import { CheckCircleIcon, MapPinIcon, UserPlusIcon } from "lucide-react";
-
-import { capitialize } from "../lib/utils"; // Fixed typo: capitialize -> capitalize
-
+import { capitialize } from "../lib/utils";
 import FriendCard, { getLanguageFlag } from "../components/FriendCard";
 import NoFriendsFound from "../components/NoFriendsFound";
 
@@ -40,7 +38,7 @@ const HomePage = () => {
 
   useEffect(() => {
     if (outgoingFriendReqs?.length > 0) {
-      setOutgoingRequestsIds(new Set(outgoingFriendReqs.map((req) => req.recipient._id)));
+      setOutgoingRequestsIds(new Set(outgoingFriendReqs.map((req) => req.recipient?._id)));
     } else {
       setOutgoingRequestsIds(new Set());
     }
@@ -49,10 +47,11 @@ const HomePage = () => {
   return (
     <div className="min-h-screen w-full bg-base-100 p-4 sm:p-6 lg:p-8">
       <div className="w-full space-y-10">
+        {/* Friends Section */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Your Friends</h2>
           <Link to="/notifications" className="btn btn-outline btn-sm">
-            <span className="mr-2 size-4">👥</span> {/* Replaced UsersIcon with emoji for consistency */}
+            <span className="mr-2 size-4">👥</span>
             Friend Requests
           </Link>
         </div>
@@ -76,6 +75,7 @@ const HomePage = () => {
           </div>
         )}
 
+        {/* Recommendations Section */}
         <section>
           <div className="mb-6 sm:mb-8">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -106,7 +106,9 @@ const HomePage = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {recommendedUsers.map((user) => {
+              {recommendedUsers.filter(Boolean).map((user) => {
+                if (!user?._id) return null;
+
                 const hasRequestBeenSent = outgoingRequestsIds.has(user._id);
 
                 return (
@@ -131,7 +133,6 @@ const HomePage = () => {
                         </div>
                       </div>
 
-                      {/* Languages with flags */}
                       <div className="flex flex-wrap gap-1.5">
                         <span className="badge badge-secondary">
                           {getLanguageFlag(user.nativeLanguage)}
@@ -145,7 +146,6 @@ const HomePage = () => {
 
                       {user.bio && <p className="text-sm opacity-70">{user.bio}</p>}
 
-                      {/* Action button */}
                       <button
                         className={`btn w-full mt-2 ${hasRequestBeenSent ? "btn-disabled" : "btn-primary"}`}
                         onClick={() => sendRequestMutation(user._id)}
